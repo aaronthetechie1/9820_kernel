@@ -1,21 +1,23 @@
 #!/bin/bash
 #
-# Build OneKernel (ExtremeKRNL base + KernelSU-Next legacy) for OneROM
-# and repack it with the known-good OneROM 9.0.1.0 boot.img ramdisk/header.
+# Build OneKernel / OneKernel+ (ExtremeKRNL base + KernelSU-Next v3.4.0-legacy)
+# for OneROM and repack it with the known-good OneROM 9.0.1.0 boot.img ramdisk/header.
 #
-# Usage: ./build_onerom_s10.sh [-m beyond1lte] [--install /path/to/OneROM]
+# Usage: ./build_onerom_s10.sh [-m beyond1lte] [-g 806] [--install /path/to/OneROM]
 #
 set -e
 
 MODEL=beyond1lte
+GPU_MAX=806
 INSTALL_DIR=""
 REF_BOOT="${REF_BOOT:-$HOME/kernel_work/boot_9010.img}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -m|--model) MODEL="$2"; shift 2 ;;
+        -g|--gpu-max) GPU_MAX="$2"; shift 2 ;;
         --install) INSTALL_DIR="$2"; shift 2 ;;
-        *) echo "Usage: $0 [-m model] [--install /path/to/OneROM]"; exit 1 ;;
+        *) echo "Usage: $0 [-m model] [-g gpu_mhz] [--install /path/to/OneROM]"; exit 1 ;;
     esac
 done
 
@@ -26,10 +28,15 @@ TOOLS="${ONEROM_TOOLS:-$HOME/OneROM_17/out/tools/bin}"
 [ -f "$REF_BOOT" ] || { echo "Reference boot.img not found: $REF_BOOT"; exit 1; }
 [ -d KernelSU-Next/.git ] || { echo "KernelSU-Next is not a git repo (version detection would fail)"; exit 1; }
 
-echo "== KernelSU-Next: $(git -C KernelSU-Next describe --tags) (ksuver $((30000 + $(git -C KernelSU-Next rev-list --count HEAD) + 289)))"
+CFG="onerom.config"
+if [ "$GPU_MAX" -gt 702 ]; then
+    CFG="onerom_oc.config"
+fi
+
+echo "== KernelSU-Next: $(git -C KernelSU-Next describe --tags) (ksuver $((30000 + $(git -C KernelSU-Next rev-list --count HEAD) + 289))) | GPU max: ${GPU_MAX} MHz ($CFG)"
 
 # Build Image + dtb + dtbo via upstream build.sh (applies GPU tables, KSU config)
-EXTRA_CONFIGS="onerom.config" ./build.sh -m "$MODEL" -k y
+EXTRA_CONFIGS="$CFG" ./build.sh -m "$MODEL" -k y -g "$GPU_MAX"
 
 OUT="$SRC/build/out/$MODEL"
 RD="$OUT/onerom"
